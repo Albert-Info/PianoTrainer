@@ -1,6 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart'; // Für kIsWeb (wird hier nicht genutzt, aber nützlich für plattformübergreifende Checks)
+import 'package:flutter/foundation.dart'; // Für plattformübergreifende Checks
 
 void main() => runApp(MyApp());
 
@@ -32,7 +32,7 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
   // Standardmäßig den Violinschlüssel wählen.
   ClefType _selectedClef = ClefType.treble;
 
-  // Variable, um anzugeben, ob die Notenlabels auf dem Klavier angezeigt werden sollen.
+  // Variable zum Ein-/Ausschalten der Notenbeschriftung auf dem Klavier.
   bool _showKeyLabels = true;
 
   // Listen für die zu übenden Noten (je nach Clef)
@@ -345,7 +345,7 @@ int getDiatonicValue(String note) {
 }
 
 /// Zeichnet ein Notensystem (Staff) für einen einzelnen Notehead.
-/// Der Referenzwert (Basislinie) richtet sich nach dem gewählten Schlüssel:
+/// Zusätzlich wird der gewählte Schlüssel (Violinschlüssel oder Bassschlüssel) links dargestellt.
 /// - Für Violinschlüssel: untere Linie entspricht E4 (Wert 30).
 /// - Für Bassschlüssel: untere Linie entspricht G2 (Wert 18).
 class StaffPainter extends CustomPainter {
@@ -370,6 +370,9 @@ class StaffPainter extends CustomPainter {
       canvas.drawLine(Offset(leftMargin, y),
           Offset(size.width - rightMargin, y), linePaint);
     }
+
+    // Zeichne den Schlüssel (Clef) links.
+    _drawClef(canvas, size);
 
     if (note.isNotEmpty) {
       int offset = getDiatonicValue(note) - baseRef;
@@ -400,6 +403,27 @@ class StaffPainter extends CustomPainter {
     }
   }
 
+  void _drawClef(Canvas canvas, Size size) {
+    // Verwende Unicode-Symbole für den Clef.
+    // Für den Violinschlüssel verwenden wir "𝄞" (U+1D11E), für den Bassschlüssel "𝄢" (U+1D122).
+    final String clefSymbol =
+        clef == ClefType.treble ? "\u{1D11E}" : "\u{1D122}";
+    final textSpan = TextSpan(
+      text: clefSymbol,
+      style: TextStyle(color: Colors.black, fontSize: 80),
+    );
+    final tp = TextPainter(
+      text: textSpan,
+      textDirection: TextDirection.ltr,
+    );
+    tp.layout();
+    // Positioniere den Clef nahe der linken Kante.
+    double x = 0;
+    // Zentriere vertikal relativ zur Basislinie (hier ca. baseY - half the clef height).
+    double y = 150 - tp.height / 2 - 40;
+    tp.paint(canvas, Offset(x, y));
+  }
+
   @override
   bool shouldRepaint(covariant StaffPainter oldDelegate) {
     return oldDelegate.note != note || oldDelegate.clef != clef;
@@ -409,6 +433,7 @@ class StaffPainter extends CustomPainter {
 /// Zeichnet ein Notensystem, in dem eine ganze Sequenz von Noten horizontal verteilt wird.
 /// Jede Note wird anhand ihres diatonischen Werts positioniert; die aktuell zu spielende Note
 /// wird hervorgehoben (gelb), bereits korrekt gespielte Noten erscheinen hellgrün.
+/// Auch hier wird der Clef (Schlüssel) links gezeichnet.
 class SequenceStaffPainter extends CustomPainter {
   final List<String> sequence;
   final int currentIndex;
@@ -435,6 +460,9 @@ class SequenceStaffPainter extends CustomPainter {
       canvas.drawLine(Offset(leftMargin, y),
           Offset(size.width - rightMargin, y), linePaint);
     }
+
+    // Zeichne den Clef links.
+    _drawClef(canvas, size);
 
     // Zeichne jede Note der Sequenz.
     for (int i = 0; i < noteCount; i++) {
@@ -471,6 +499,20 @@ class SequenceStaffPainter extends CustomPainter {
         tp.paint(canvas, Offset(x - 30, noteY - tp.height / 2));
       }
     }
+  }
+
+  void _drawClef(Canvas canvas, Size size) {
+    final String clefSymbol =
+        clef == ClefType.treble ? "\u{1D11E}" : "\u{1D122}";
+    final textSpan = TextSpan(
+      text: clefSymbol,
+      style: TextStyle(color: Colors.black, fontSize: 60),
+    );
+    final tp = TextPainter(text: textSpan, textDirection: TextDirection.ltr);
+    tp.layout();
+    double x = 0;
+    double y = 150 - tp.height / 2;
+    tp.paint(canvas, Offset(x, y));
   }
 
   @override
@@ -626,14 +668,12 @@ class FullPianoKeyboard extends StatelessWidget {
                     child: Align(
                       alignment: Alignment.bottomCenter,
                       child: showKeyLabels
-                          ? Text(
-                              keyData.note,
+                          ? Text(keyData.note,
                               style: TextStyle(
                                   fontSize: 8,
                                   color: bgColor == Colors.black
                                       ? Colors.white
-                                      : Colors.black),
-                            )
+                                      : Colors.black))
                           : Container(),
                     ),
                   ),
