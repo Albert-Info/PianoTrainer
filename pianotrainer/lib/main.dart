@@ -1,10 +1,14 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart'; // Für kIsWeb (wird hier nicht genutzt, aber nützlich für plattformübergreifende Checks)
 
 void main() => runApp(MyApp());
 
-/// Unterscheidung der Modi: Einzelnoten vs. Sequenz (10 Noten)
+/// Unterscheidung der Übungsmodi: Einzelnoten vs. Sequenz (10 Noten)
 enum PracticeMode { individual, sequence }
+
+/// Unterscheidung der Schlüsseltypen: Violinschlüssel (Treble) oder Bassschlüssel (Bass)
+enum ClefType { treble, bass }
 
 class MyApp extends StatelessWidget {
   @override
@@ -25,9 +29,16 @@ class NoteLearningApp extends StatefulWidget {
 class _NoteLearningAppState extends State<NoteLearningApp> {
   // Standardmäßig im Einzelnoten-Modus starten.
   PracticeMode _mode = PracticeMode.individual;
+  // Standardmäßig den Violinschlüssel wählen.
+  ClefType _selectedClef = ClefType.treble;
 
-  // Liste aller verfügbaren Noten im Bereich: C4 bis B5 plus oberstes C (C6)
-  final List<String> _allNotes = [];
+  // Variable, um anzugeben, ob die Notenlabels auf dem Klavier angezeigt werden sollen.
+  bool _showKeyLabels = true;
+
+  // Listen für die zu übenden Noten (je nach Clef)
+  final List<String> _trebleNotes = [];
+  final List<String> _bassNotes = [];
+
   // Einzelnoten-Modus:
   String _currentNote = '';
   // Sequenz-Modus: Hier werden 10 Noten in Folge generiert.
@@ -43,7 +54,7 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
   @override
   void initState() {
     super.initState();
-    // Erzeuge alle Noten für die Oktaven 4 und 5:
+    // Erzeuge Notenliste für den Violinschlüssel: Hier verwenden wir Noten von C4 bis B5 plus C6.
     for (var octave in [4, 5]) {
       for (var note in [
         'C',
@@ -59,15 +70,23 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
         'A#',
         'B'
       ]) {
-        _allNotes.add('$note$octave');
+        _trebleNotes.add('$note$octave');
       }
     }
-    _allNotes.add('C6'); // oberstes C
+    _trebleNotes.add('C6'); // oberstes C
+
+    // Erzeuge Notenliste für den Bassschlüssel: Beispielbereich von F2 bis B3 plus C4.
+    for (var octave in [2, 3]) {
+      for (var note in ['F', 'F#', 'G', 'G#', 'A', 'A#', 'B']) {
+        _bassNotes.add('$note$octave');
+      }
+    }
+    _bassNotes.add('C4'); // als obere Grenze
 
     _resetPractice();
   }
 
-  /// Setzt den Zustand zurück (beim Modi-Wechsel oder per Button)
+  /// Setzt den Zustand zurück (beim Modi-Wechsel, Clef-Wechsel oder per Button)
   void _resetPractice() {
     _lastTappedNote = null;
     _lastTapCorrect = null;
@@ -80,18 +99,21 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
     }
   }
 
-  /// Einzelnoten-Modus: Wähle eine zufällige Note.
+  /// Wählt im Einzelnoten-Modus zufällig eine Note aus dem entsprechenden Notenbereich.
   void _pickRandomNote() {
     setState(() {
-      _currentNote = _allNotes[Random().nextInt(_allNotes.length)];
+      List<String> pool =
+          _selectedClef == ClefType.treble ? _trebleNotes : _bassNotes;
+      _currentNote = pool[Random().nextInt(pool.length)];
     });
   }
 
-  /// Sequenz-Modus: Erzeuge eine Liste mit 10 zufälligen Noten.
+  /// Erzeugt im Sequenz-Modus eine Liste mit 10 zufälligen Noten aus dem entsprechenden Notenbereich.
   void _generateSequence() {
     final random = Random();
-    _sequence =
-        List.generate(10, (_) => _allNotes[random.nextInt(_allNotes.length)]);
+    List<String> pool =
+        _selectedClef == ClefType.treble ? _trebleNotes : _bassNotes;
+    _sequence = List.generate(10, (_) => pool[random.nextInt(pool.length)]);
     setState(() {});
   }
 
@@ -113,7 +135,6 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
     });
 
     if (tappedNote == _currentExpectedNote) {
-      // Richtig: Zeige 500 ms lang hellgrünes Highlight, danach weiter.
       Future.delayed(Duration(milliseconds: 500), () {
         setState(() {
           _lastTappedNote = null;
@@ -127,7 +148,6 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
         });
       });
     } else {
-      // Falsch: Zeige 500 ms lang orangenes Highlight, danach erneute Eingabe ermöglichen.
       Future.delayed(Duration(milliseconds: 500), () {
         setState(() {
           _lastTappedNote = null;
@@ -158,8 +178,8 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            SizedBox(height: 20),
-            // Umschaltbuttons für die Modi.
+            SizedBox(height: 10),
+            // Auswahl der Modi (Einzelnoten / Sequenz)
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -194,7 +214,59 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
                 ),
               ],
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 10),
+            // Auswahl des Schlüssels: Violinschlüssel oder Bassschlüssel.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedClef = ClefType.treble;
+                      _resetPractice();
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _selectedClef == ClefType.treble
+                        ? Colors.blue
+                        : Colors.grey,
+                  ),
+                  child: Text("Violinschlüssel"),
+                ),
+                SizedBox(width: 10),
+                ElevatedButton(
+                  onPressed: () {
+                    setState(() {
+                      _selectedClef = ClefType.bass;
+                      _resetPractice();
+                    });
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: _selectedClef == ClefType.bass
+                        ? Colors.blue
+                        : Colors.grey,
+                  ),
+                  child: Text("Bassschlüssel"),
+                ),
+              ],
+            ),
+            SizedBox(height: 10),
+            // Checkbox zum Ein-/Ausschalten der Notenbeschriftung auf dem Klavier.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Checkbox(
+                  value: _showKeyLabels,
+                  onChanged: (bool? newValue) {
+                    setState(() {
+                      _showKeyLabels = newValue ?? true;
+                    });
+                  },
+                ),
+                Text("Notenbeschriftung anzeigen")
+              ],
+            ),
+            SizedBox(height: 10),
             Text(
               _mode == PracticeMode.individual
                   ? 'Erkenne die Note:'
@@ -202,50 +274,50 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
               style: TextStyle(fontSize: 24),
             ),
             SizedBox(height: 10),
-            // Im Einzelnoten-Modus: Zeige die aktuelle Note auf dem Notensystem.
-            // Im Sequenz-Modus: Zeichne alle 10 Noten gleichzeitig auf dem Notensheet.
+            // Notensystem: Je nach Modus wird entweder eine einzelne Note oder die ganze Sequenz gezeichnet.
             SizedBox(
               height: 220,
               child: CustomPaint(
                 size: Size(double.infinity, 220),
                 painter: _mode == PracticeMode.individual
-                    ? StaffPainter(_currentExpectedNote)
-                    : SequenceStaffPainter(_sequence, _currentIndex),
+                    ? StaffPainter(_currentExpectedNote, clef: _selectedClef)
+                    : SequenceStaffPainter(_sequence, _currentIndex,
+                        clef: _selectedClef),
               ),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 10),
             Text(
-              'Spiele die Note auf der Klaviertastatur:',
+              'Spiele die Note auf dem Flügel:',
               style: TextStyle(fontSize: 20),
             ),
             SizedBox(height: 10),
-            // Klaviertastatur: Hier wird _keine_ Lösungsvorschau angezeigt.
+            // Vollständiger Flügel: Eine horizontal scrollbare Klaviertastatur (88 Tasten).
             Container(
               height: 150,
-              child: PianoKeyboard(
+              child: FullPianoKeyboard(
                 onKeyTap: _onKeyTap,
-                expectedNote: '', // wird nicht genutzt
                 lastTappedNote: _lastTappedNote,
                 lastTapCorrect: _lastTapCorrect,
+                showKeyLabels: _showKeyLabels,
               ),
             ),
-            SizedBox(height: 20),
+            SizedBox(height: 10),
             // Button zum Generieren einer neuen Sequenz bzw. einer neuen Note.
-            if (_mode == PracticeMode.sequence)
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    _generateSequence();
-                    _currentIndex = 0;
-                  });
-                },
-                child: Text("Neue Sequenz generieren"),
-              )
-            else
-              ElevatedButton(
-                onPressed: _pickRandomNote,
-                child: Text("Neue Note"),
-              ),
+            _mode == PracticeMode.sequence
+                ? ElevatedButton(
+                    onPressed: () {
+                      setState(() {
+                        _generateSequence();
+                        _currentIndex = 0;
+                      });
+                    },
+                    child: Text("Neue Sequenz generieren"),
+                  )
+                : ElevatedButton(
+                    onPressed: _pickRandomNote,
+                    child: Text("Neue Note"),
+                  ),
+            SizedBox(height: 20),
           ],
         ),
       ),
@@ -254,8 +326,8 @@ class _NoteLearningAppState extends State<NoteLearningApp> {
 }
 
 /// Berechnet einen diatonischen Wert zur Positionierung im Notensystem.
-/// Hierbei wird nur der Buchstabe (A–G) und die Oktave berücksichtigt.
-/// Dabei gilt: C=0, D=1, …, B=6.
+/// Dabei wird nur der Buchstabe (A–G) und die Oktave berücksichtigt.
+/// Es gilt: C=0, D=1, …, B=6.
 int getDiatonicValue(String note) {
   String letter = note[0];
   bool isSharp = note.length > 2 && note[1] == '#';
@@ -272,11 +344,14 @@ int getDiatonicValue(String note) {
   return octave * 7 + letterValues[letter]!;
 }
 
-/// Zeichnet ein Notensystem (Treble‑Schlüssel) und einen einzelnen Notehead.
-/// Die Note wird anhand ihres diatonischen Werts positioniert (E4 entspricht hier 30).
+/// Zeichnet ein Notensystem (Staff) für einen einzelnen Notehead.
+/// Der Referenzwert (Basislinie) richtet sich nach dem gewählten Schlüssel:
+/// - Für Violinschlüssel: untere Linie entspricht E4 (Wert 30).
+/// - Für Bassschlüssel: untere Linie entspricht G2 (Wert 18).
 class StaffPainter extends CustomPainter {
   final String note;
-  StaffPainter(this.note);
+  final ClefType clef;
+  StaffPainter(this.note, {required this.clef});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -284,26 +359,27 @@ class StaffPainter extends CustomPainter {
       ..color = Colors.black
       ..strokeWidth = 2;
     const double step = 10.0;
-    const double baseY = 150.0;
+    const double leftMargin = 20.0;
+    const double rightMargin = 20.0;
+    double baseY = 150.0;
+    int baseRef = clef == ClefType.treble ? 30 : 18;
 
     // Zeichne die fünf Linien des Notensystems.
     for (int i = 0; i <= 8; i += 2) {
       double y = baseY - i * step;
-      canvas.drawLine(Offset(20, y), Offset(size.width - 20, y), linePaint);
+      canvas.drawLine(Offset(leftMargin, y),
+          Offset(size.width - rightMargin, y), linePaint);
     }
 
     if (note.isNotEmpty) {
-      int offset = getDiatonicValue(note) - 30;
+      int offset = getDiatonicValue(note) - baseRef;
       double noteY = baseY - offset * step;
       double noteX = size.width / 2;
 
-      // Ledger Lines zeichnen, falls nötig.
+      // Zeichne Ledger Lines falls nötig.
       if ((offset < 0 || offset > 8) && offset % 2 == 0) {
         canvas.drawLine(
-          Offset(noteX - 20, noteY),
-          Offset(noteX + 20, noteY),
-          linePaint,
-        );
+            Offset(noteX - 20, noteY), Offset(noteX + 20, noteY), linePaint);
       }
 
       // Zeichne den Notehead.
@@ -312,16 +388,12 @@ class StaffPainter extends CustomPainter {
           Rect.fromCenter(center: Offset(noteX, noteY), width: 16, height: 10);
       canvas.drawOval(noteRect, notePaint);
 
-      // Falls es sich um eine #-Note handelt, zeichne ein ♯-Symbol links vom Notehead.
+      // Zeichne ggf. das ♯-Symbol.
       if (note.contains('#')) {
         final textSpan = TextSpan(
-          text: '♯',
-          style: TextStyle(color: Colors.black, fontSize: 16),
-        );
-        final tp = TextPainter(
-          text: textSpan,
-          textDirection: TextDirection.ltr,
-        );
+            text: '♯', style: TextStyle(color: Colors.black, fontSize: 16));
+        final tp =
+            TextPainter(text: textSpan, textDirection: TextDirection.ltr);
         tp.layout();
         tp.paint(canvas, Offset(noteX - 30, noteY - tp.height / 2));
       }
@@ -330,17 +402,18 @@ class StaffPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant StaffPainter oldDelegate) {
-    return oldDelegate.note != note;
+    return oldDelegate.note != note || oldDelegate.clef != clef;
   }
 }
 
-/// Zeichnet ein Notensystem, in dem eine ganze Sequenz von Noten (z. B. 10 Noten) horizontal verteilt wird.
-/// Dabei wird für jede Note anhand ihres diatonischen Werts die vertikale Position berechnet.
-/// Die Note, die aktuell zu spielen ist (currentIndex), wird hervorgehoben.
+/// Zeichnet ein Notensystem, in dem eine ganze Sequenz von Noten horizontal verteilt wird.
+/// Jede Note wird anhand ihres diatonischen Werts positioniert; die aktuell zu spielende Note
+/// wird hervorgehoben (gelb), bereits korrekt gespielte Noten erscheinen hellgrün.
 class SequenceStaffPainter extends CustomPainter {
   final List<String> sequence;
   final int currentIndex;
-  SequenceStaffPainter(this.sequence, this.currentIndex);
+  final ClefType clef;
+  SequenceStaffPainter(this.sequence, this.currentIndex, {required this.clef});
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -353,28 +426,23 @@ class SequenceStaffPainter extends CustomPainter {
     const double rightMargin = 20.0;
     final double availableWidth = size.width - leftMargin - rightMargin;
     int noteCount = sequence.length;
-    // Wenn mehr als 1 Note: berechne den horizontalen Abstand.
     double spacing = noteCount > 1 ? availableWidth / (noteCount - 1) : 0;
+    int baseRef = clef == ClefType.treble ? 30 : 18;
 
-    // Zeichne das Notensystem (die fünf Linien).
+    // Zeichne die fünf Linien.
     for (int i = 0; i <= 8; i += 2) {
       double y = baseY - i * step;
       canvas.drawLine(Offset(leftMargin, y),
           Offset(size.width - rightMargin, y), linePaint);
     }
 
-    // Zeichne jede Note in der Sequenz.
+    // Zeichne jede Note der Sequenz.
     for (int i = 0; i < noteCount; i++) {
       String note = sequence[i];
-      // Berechne den x-Wert: gleichmäßig verteilt zwischen leftMargin und (size.width - rightMargin).
       double x = leftMargin + i * spacing;
-      int offset = getDiatonicValue(note) - 30;
+      int offset = getDiatonicValue(note) - baseRef;
       double noteY = baseY - offset * step;
 
-      // Bestimme die Farbe des Noteheads:
-      // - Bereits korrekt gespielt (i < currentIndex): hellgrün
-      // - Aktuell zu spielende Note (i == currentIndex): gelb
-      // - Rest: schwarz
       Color noteColor;
       if (i < currentIndex) {
         noteColor = Colors.lightGreen;
@@ -384,31 +452,21 @@ class SequenceStaffPainter extends CustomPainter {
         noteColor = Colors.black;
       }
 
-      // Falls die Note außerhalb des Systems liegt und exakt auf einer Linienposition ist, zeichne Ledger Lines.
       if ((offset < 0 || offset > 8) && offset % 2 == 0) {
         canvas.drawLine(
-          Offset(x - 20, noteY),
-          Offset(x + 20, noteY),
-          linePaint,
-        );
+            Offset(x - 20, noteY), Offset(x + 20, noteY), linePaint);
       }
 
-      // Zeichne den Notehead als Oval in der bestimmten Farbe.
       final paint = Paint()..color = noteColor;
       Rect noteRect =
           Rect.fromCenter(center: Offset(x, noteY), width: 16, height: 10);
       canvas.drawOval(noteRect, paint);
 
-      // Falls es sich um eine #-Note handelt, zeichne ein ♯-Symbol links vom Notehead.
       if (note.contains('#')) {
         final textSpan = TextSpan(
-          text: '♯',
-          style: TextStyle(color: noteColor, fontSize: 16),
-        );
-        final tp = TextPainter(
-          text: textSpan,
-          textDirection: TextDirection.ltr,
-        );
+            text: '♯', style: TextStyle(color: noteColor, fontSize: 16));
+        final tp =
+            TextPainter(text: textSpan, textDirection: TextDirection.ltr);
         tp.layout();
         tp.paint(canvas, Offset(x - 30, noteY - tp.height / 2));
       }
@@ -418,119 +476,135 @@ class SequenceStaffPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant SequenceStaffPainter oldDelegate) {
     return oldDelegate.sequence != sequence ||
-        oldDelegate.currentIndex != currentIndex;
+        oldDelegate.currentIndex != currentIndex ||
+        oldDelegate.clef != clef;
   }
 }
 
-/// Zeichnet eine Klaviertastatur für den Bereich von C4 bis C6.
-/// Die weißen Tasten werden in einer Row dargestellt und
-/// die schwarzen Tasten – entsprechend ihrer Position wie auf einem echten Klavier – werden überlagert.
-/// Beim Tastendruck wird (temporär) das Ergebnis hervorgehoben.
-class PianoKeyboard extends StatelessWidget {
+/// Datenklasse für eine Klaviertaste.
+class PianoKeyData {
+  final String note;
+  final bool isBlack;
+  final int whiteIndex; // Position unter den weißen Tasten
+  PianoKeyData(
+      {required this.note, required this.isBlack, required this.whiteIndex});
+}
+
+/// Generiert die 88 Tasten eines Flügels (von A0 bis C8).
+List<PianoKeyData> generateFullPianoKeys() {
+  List<PianoKeyData> keys = [];
+  int whiteKeyCounter = 0;
+  // Definition der Note-Reihenfolge für Oktave 0.
+  List<String> octave0 = ["A", "A#", "B"];
+  for (String note in octave0) {
+    bool isBlack = note.contains('#');
+    keys.add(PianoKeyData(
+        note: "${note}0",
+        isBlack: isBlack,
+        whiteIndex: isBlack ? whiteKeyCounter - 1 : whiteKeyCounter));
+    if (!isBlack) whiteKeyCounter++;
+  }
+  // Oktaven 1 bis 7.
+  for (int octave = 1; octave <= 7; octave++) {
+    List<String> notes = [
+      "C",
+      "C#",
+      "D",
+      "D#",
+      "E",
+      "F",
+      "F#",
+      "G",
+      "G#",
+      "A",
+      "A#",
+      "B"
+    ];
+    for (String note in notes) {
+      bool isBlack = note.contains('#');
+      keys.add(PianoKeyData(
+          note: "$note$octave",
+          isBlack: isBlack,
+          whiteIndex: isBlack ? whiteKeyCounter - 1 : whiteKeyCounter));
+      if (!isBlack) whiteKeyCounter++;
+    }
+  }
+  // Oktave 8: Nur C8.
+  keys.add(
+      PianoKeyData(note: "C8", isBlack: false, whiteIndex: whiteKeyCounter));
+  whiteKeyCounter++;
+  return keys;
+}
+
+/// Zeichnet einen kompletten Flügel (vollständige Klaviertastatur).
+/// Die weißen Tasten werden in einer horizontal scrollbaren Zeile dargestellt;
+/// die schwarzen Tasten werden als Positioned-Widgets darüber gelegt.
+/// Mit der Option 'showKeyLabels' kannst Du steuern, ob die Notenbeschriftung angezeigt wird.
+class FullPianoKeyboard extends StatelessWidget {
   final Function(String) onKeyTap;
-  // Der Parameter expectedNote wird hier _nicht_ verwendet, um die Lösung zu verbergen.
-  final String expectedNote;
   final String? lastTappedNote;
   final bool? lastTapCorrect;
-  const PianoKeyboard({
+  final bool showKeyLabels;
+  const FullPianoKeyboard({
     Key? key,
     required this.onKeyTap,
-    required this.expectedNote,
     this.lastTappedNote,
     this.lastTapCorrect,
+    this.showKeyLabels = true,
   }) : super(key: key);
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        double totalWidth = constraints.maxWidth;
-        // Es gibt 15 weiße Tasten: C4, D4, E4, F4, G4, A4, B4, C5, D5, E5, F5, G5, A5, B5, C6.
-        int numWhiteKeys = 15;
-        double whiteKeyWidth = totalWidth / numWhiteKeys;
-        double whiteKeyHeight = 150;
-        double blackKeyWidth = whiteKeyWidth * 0.6;
-        double blackKeyHeight = whiteKeyHeight * 0.6;
+    List<PianoKeyData> keys = generateFullPianoKeys();
+    // Filtere die weißen Tasten für die Hintergrund-Reihe.
+    List<PianoKeyData> whiteKeys = keys.where((key) => !key.isBlack).toList();
+    // Feste Breite pro weißer Taste.
+    double whiteKeyWidth = 40;
+    double whiteKeyHeight = 150;
+    double totalWidth = whiteKeys.length * whiteKeyWidth;
+    List<PianoKeyData> blackKeys = keys.where((key) => key.isBlack).toList();
 
-        // Definition der weißen Tasten.
-        final List<String> whiteNotes = [
-          'C4',
-          'D4',
-          'E4',
-          'F4',
-          'G4',
-          'A4',
-          'B4',
-          'C5',
-          'D5',
-          'E5',
-          'F5',
-          'G5',
-          'A5',
-          'B5',
-          'C6',
-        ];
-
-        // Für die schwarzen Tasten wird hier der Index der weißen Taste angegeben,
-        // vor der die schwarze Taste platziert werden soll.
-        final List<Map<String, dynamic>> blackKeys = [
-          {'note': 'C#4', 'whiteIndex': 0},
-          {'note': 'D#4', 'whiteIndex': 1},
-          // Zwischen E4 und F4 gibt es keine schwarze Taste.
-          {'note': 'F#4', 'whiteIndex': 3},
-          {'note': 'G#4', 'whiteIndex': 4},
-          {'note': 'A#4', 'whiteIndex': 5},
-          // Für Oktave 5:
-          {'note': 'C#5', 'whiteIndex': 7},
-          {'note': 'D#5', 'whiteIndex': 8},
-          // Zwischen E5 und F5 gibt es keine schwarze Taste.
-          {'note': 'F#5', 'whiteIndex': 10},
-          {'note': 'G#5', 'whiteIndex': 11},
-          {'note': 'A#5', 'whiteIndex': 12},
-        ];
-
-        return Stack(
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Container(
+        width: totalWidth,
+        height: whiteKeyHeight,
+        child: Stack(
           children: [
-            // Zeichne die weißen Tasten in einer Row.
+            // Weiße Tasten als Row – interaktiv durch GestureDetector.
             Row(
-              children: whiteNotes.map((note) {
+              children: whiteKeys.map((keyData) {
                 Color bgColor = Colors.white;
-                if (note == lastTappedNote) {
+                if (keyData.note == lastTappedNote) {
                   bgColor = (lastTapCorrect ?? false)
                       ? Colors.lightGreen
                       : Colors.orange;
                 }
-                return Expanded(
-                  child: GestureDetector(
-                    onTap: () => onKeyTap(note),
-                    child: Container(
-                      height: whiteKeyHeight,
-                      decoration: BoxDecoration(
-                        color: bgColor,
-                        border: Border.all(color: Colors.black),
-                      ),
-                      child: Align(
-                        alignment: Alignment.bottomCenter,
-                        child: Text(
-                          note,
-                          style: TextStyle(fontSize: 12, color: Colors.black),
-                        ),
-                      ),
+                return GestureDetector(
+                  onTap: () => onKeyTap(keyData.note),
+                  child: Container(
+                    width: whiteKeyWidth,
+                    height: whiteKeyHeight,
+                    decoration: BoxDecoration(
+                      color: bgColor,
+                      border: Border.all(color: Colors.black),
+                    ),
+                    child: Align(
+                      alignment: Alignment.bottomCenter,
+                      child: showKeyLabels
+                          ? Text(keyData.note, style: TextStyle(fontSize: 10))
+                          : Container(),
                     ),
                   ),
                 );
               }).toList(),
             ),
-            // Zeichne die schwarzen Tasten, positioniert zwischen den entsprechenden weißen Tasten.
-            ...blackKeys.map((keyInfo) {
-              int whiteIndex = keyInfo['whiteIndex'];
-              // Der Mittelpunkt der schwarzen Taste liegt genau an der Grenze zwischen der weißen Taste
-              // mit Index whiteIndex und der nächsten.
-              double centerX = (whiteIndex + 1) * whiteKeyWidth;
-              double left = centerX - blackKeyWidth / 2;
-              String note = keyInfo['note'];
+            // Schwarze Tasten, positioniert zwischen den weißen Tasten.
+            ...blackKeys.map((keyData) {
+              double left = (keyData.whiteIndex + 1) * whiteKeyWidth -
+                  (whiteKeyWidth * 0.3);
               Color bgColor = Colors.black;
-              if (note == lastTappedNote) {
+              if (keyData.note == lastTappedNote) {
                 bgColor = (lastTapCorrect ?? false)
                     ? Colors.lightGreen
                     : Colors.orange;
@@ -538,10 +612,10 @@ class PianoKeyboard extends StatelessWidget {
               return Positioned(
                 top: 0,
                 left: left,
-                width: blackKeyWidth,
-                height: blackKeyHeight,
+                width: whiteKeyWidth * 0.6,
+                height: whiteKeyHeight * 0.6,
                 child: GestureDetector(
-                  onTap: () => onKeyTap(note),
+                  onTap: () => onKeyTap(keyData.note),
                   child: Container(
                     decoration: BoxDecoration(
                       color: bgColor,
@@ -551,23 +625,24 @@ class PianoKeyboard extends StatelessWidget {
                     ),
                     child: Align(
                       alignment: Alignment.bottomCenter,
-                      child: Text(
-                        note,
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: (bgColor == Colors.black)
-                              ? Colors.white
-                              : Colors.black,
-                        ),
-                      ),
+                      child: showKeyLabels
+                          ? Text(
+                              keyData.note,
+                              style: TextStyle(
+                                  fontSize: 8,
+                                  color: bgColor == Colors.black
+                                      ? Colors.white
+                                      : Colors.black),
+                            )
+                          : Container(),
                     ),
                   ),
                 ),
               );
             }).toList(),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }
